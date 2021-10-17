@@ -13,7 +13,10 @@ import com.google.devtools.ksp.symbol.KSFunctionDeclaration
 import com.google.devtools.ksp.symbol.KSVisitorVoid
 import com.google.devtools.ksp.symbol.Nullability
 import com.google.devtools.ksp.validate
+import com.squareup.kotlinpoet.*
 import java.io.OutputStream
+import java.io.OutputStreamWriter
+import java.nio.charset.StandardCharsets
 
 
 fun OutputStream.appendText(str: String) {
@@ -43,44 +46,81 @@ class KtBuilderProcessor(
             val packageName = parent.containingFile!!.packageName.asString()
             val className = "${parentClassName}Builder"
 
-            val file = codeGenerator.createNewFile(
-                Dependencies(true, function.containingFile!!), packageName, className)
-
-            file.appendText("package ${packageName}\n\n")
-            file.appendText("class ${className}{\n")
+            var propertySpecList = ArrayList<PropertySpec>()
+            var funSpecList = ArrayList<FunSpec>()
 
             function.parameters.forEach {
-                val name = it.name!!.asString()
-                val typeName = StringBuilder(it.type.resolve().declaration.qualifiedName?.asString() ?: "<ERROR>")
+                val propertyName = it.name!!.asString()
+                val typeNameBuilder = StringBuilder(it.type.resolve().declaration.qualifiedName?.asString() ?: "<ERROR>")
                 val typeArgs = it.type.element!!.typeArguments
-                if (it.type.element!!.typeArguments.isNotEmpty()) {
-                    typeName.append("<")
-                    typeName.append(
+                if (typeArgs.isNotEmpty()) {
+                    typeNameBuilder.append("<")
+                    typeNameBuilder.append(
                         typeArgs.map {
                             val type = it.type?.resolve()
                             "${it.variance.label} ${type?.declaration?.qualifiedName?.asString() ?: "ERROR"}" +
                                     if (type?.nullability == Nullability.NULLABLE) "?" else ""
                         }.joinToString(", ")
                     )
-                    typeName.append(">")
+                    typeNameBuilder.append(">")
                 }
-                file.appendText("    private var $name: $typeName? = null\n")
-                file.appendText("    fun ${name}($name: $typeName): $className {\n")
-                file.appendText("        this.$name = $name\n")
-                file.appendText("        return this\n")
-                file.appendText("    }\n\n")
+
+                val typeName = ClassName.bestGuess(typeNameBuilder.toString()).copy(nullable = true)
+
+                propertySpecList.add(
+                    PropertySpec.builder(propertyName, typeName)
+                        .addModifiers(KModifier.PRIVATE)
+                        .mutable(true)
+                        .initializer("null")
+                        .build()
+                )
+
+                funSpecList.add(
+                    FunSpec.builder(propertyName)
+                        .addParameter(propertyName, typeName)
+                        .returns(ClassName(packageName, className))
+                        .addStatement(
+                            """
+                                this.$propertyName = $propertyName
+                                return this
+                            """.trimIndent()
+                        )
+                        .build()
+                )
             }
-            file.appendText("    fun build(): ${parent.qualifiedName!!.asString()} {\n")
-            file.appendText("        return ${parent.qualifiedName!!.asString()}(")
-            file.appendText(
-                function.parameters.map {
-                    "${it.name!!.asString()}!!"
-                }.joinToString(", ")
+
+            val builder = StringBuilder()
+            funSpecList.add(
+                FunSpec.builder("build")
+                    .returns(ClassName(packageName, parentClassName))
+                    .addStatement(
+                        StringBuilder()
+                            .append("return ${parentClassName}(")
+                            .append(function.parameters.map{
+                                "${it.name!!.asString()}!!"
+                            }.joinToString(", "))
+                            .append(")")
+                            .toString()
+                    )
+                    .build()
             )
-            file.appendText(")\n")
-            file.appendText("    }\n")
-            file.appendText("}\n")
-            file.close()
+
+            val classSpec = TypeSpec.classBuilder(className)
+                .addProperties(propertySpecList)
+                .addFunctions(funSpecList)
+                .build()
+
+
+            val file = codeGenerator.createNewFile(
+                Dependencies(true, function.containingFile!!), packageName, className
+            )
+
+            val fileSpec = FileSpec.builder(packageName, className)
+                .addType(classSpec)
+                .build()
+
+            OutputStreamWriter(file, StandardCharsets.UTF_8)
+                .use { fileSpec.writeTo(it) }
         }
     }
 
