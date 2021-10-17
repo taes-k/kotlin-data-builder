@@ -1,12 +1,20 @@
-plugins {
-    kotlin("jvm") version "1.5.31" apply false
-}
+//plugins {
+//    kotlin("jvm") version "1.5.30"
+//}
+//
+//repositories {
+//    mavenCentral()
+//}
 
-buildscript {
-    dependencies {
-        classpath(kotlin("gradle-plugin", version = "1.5.31"))
-    }
-}
+//plugins {
+//    kotlin("jvm") version "1.5.31" apply false
+//}
+//
+//buildscript {
+//    dependencies {
+//        classpath(kotlin("gradle-plugin", version = "1.5.31"))
+//    }
+//}
 
 //plugins {
 //    kotlin("jvm") version "1.5.31"

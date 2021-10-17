@@ -1,5 +1,8 @@
+//val kspVersion: String by project
+
 plugins {
-    kotlin("jvm")
+    kotlin("jvm") version "1.5.31"
+    kotlin("kapt") version "1.5.31"
 }
 
 group = "com.taes"
@@ -9,8 +12,11 @@ repositories {
     mavenCentral()
 }
 
-val kspVersion = "1.5.31-1.0.0"
 dependencies {
     implementation(kotlin("stdlib"))
-    implementation("com.google.devtools.ksp:symbol-processing-api:$kspVersion")
+    implementation ("com.squareup:kotlinpoet:1.10.1")
+
+//    implementation("com.google.devtools.ksp:symbol-processing-api:$kspVersion")
+    implementation("com.google.auto.service:auto-service:1.0")
+    kapt("com.google.auto.service:auto-service:1.0")
 }

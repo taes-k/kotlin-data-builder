@@ -1,14 +1,20 @@
 package com.taes.app
 
-fun main(){
-    val obj1: SampleObj = SampleObjBuilder()
-        .name("1")
-        .age(12)
-        .build()
-    println(obj1)
+import com.taes.annotation.KtBuilder
 
-    val obj2 = obj1.copy(
-        age = 13
-    )
-    println(obj2)
+fun main(){
+    println("The compiler should have told you I am interesting")
+
+    val obj = SampleObj("ABC", 12)
+    println(obj)
+//    val obj1: SampleObj = SampleObjBuilder()
+//        .name("1")
+//        .age(12)
+//        .build()
+//    println(obj1)
+//
+//    val obj2 = obj1.copy(
+//        age = 13
+//    )
+//    println(obj2)
 }
