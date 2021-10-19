@@ -13,7 +13,12 @@ import com.google.devtools.ksp.symbol.KSFunctionDeclaration
 import com.google.devtools.ksp.symbol.KSVisitorVoid
 import com.google.devtools.ksp.symbol.Nullability
 import com.google.devtools.ksp.validate
-import com.squareup.kotlinpoet.*
+import com.squareup.kotlinpoet.ClassName
+import com.squareup.kotlinpoet.FileSpec
+import com.squareup.kotlinpoet.FunSpec
+import com.squareup.kotlinpoet.KModifier
+import com.squareup.kotlinpoet.PropertySpec
+import com.squareup.kotlinpoet.TypeSpec
 import java.io.OutputStream
 import java.io.OutputStreamWriter
 import java.nio.charset.StandardCharsets
@@ -46,9 +51,31 @@ class KtBuilderProcessor(
             val packageName = parent.containingFile!!.packageName.asString()
             val className = "${parentClassName}Builder"
 
-            var propertySpecList = ArrayList<PropertySpec>()
-            var funSpecList = ArrayList<FunSpec>()
+            val propertySpecList = getPropertySpecList(function)
+            val funSpecList = getFunctionSpecList(function, packageName, parentClassName, className)
 
+            val classSpec = TypeSpec.classBuilder(className)
+                .addProperties(propertySpecList)
+                .addFunctions(funSpecList)
+                .build()
+
+
+            val file = codeGenerator.createNewFile(
+                Dependencies(true, function.containingFile!!), packageName, className
+            )
+
+            val fileSpec = FileSpec.builder(packageName, className)
+                .addType(classSpec)
+                .build()
+
+            OutputStreamWriter(file, StandardCharsets.UTF_8)
+                .use { fileSpec.writeTo(it) }
+        }
+
+        private fun getPropertySpecList(
+            function: KSFunctionDeclaration
+        ): List<PropertySpec> {
+            val propertySpecList = ArrayList<PropertySpec>()
             function.parameters.forEach {
                 val propertyName = it.name!!.asString()
                 val typeNameBuilder = StringBuilder(it.type.resolve().declaration.qualifiedName?.asString() ?: "<ERROR>")
@@ -74,6 +101,36 @@ class KtBuilderProcessor(
                         .initializer("null")
                         .build()
                 )
+            }
+
+            return propertySpecList
+        }
+
+        private fun getFunctionSpecList(
+            function: KSFunctionDeclaration,
+            packageName: String,
+            parentClassName: String,
+            className: String
+        ): List<FunSpec> {
+
+            val funSpecList = ArrayList<FunSpec>()
+            function.parameters.forEach {
+                val propertyName = it.name!!.asString()
+                val typeNameBuilder = StringBuilder(it.type.resolve().declaration.qualifiedName?.asString() ?: "<ERROR>")
+                val typeArgs = it.type.element!!.typeArguments
+                if (typeArgs.isNotEmpty()) {
+                    typeNameBuilder.append("<")
+                    typeNameBuilder.append(
+                        typeArgs.map {
+                            val type = it.type?.resolve()
+                            "${it.variance.label} ${type?.declaration?.qualifiedName?.asString() ?: "ERROR"}" +
+                                    if (type?.nullability == Nullability.NULLABLE) "?" else ""
+                        }.joinToString(", ")
+                    )
+                    typeNameBuilder.append(">")
+                }
+
+                val typeName = ClassName.bestGuess(typeNameBuilder.toString()).copy(nullable = true)
 
                 funSpecList.add(
                     FunSpec.builder(propertyName)
@@ -81,22 +138,21 @@ class KtBuilderProcessor(
                         .returns(ClassName(packageName, className))
                         .addStatement(
                             """
-                                this.$propertyName = $propertyName
-                                return this
-                            """.trimIndent()
+                            this.$propertyName = $propertyName
+                            return this
+                        """.trimIndent()
                         )
                         .build()
                 )
             }
 
-            val builder = StringBuilder()
             funSpecList.add(
                 FunSpec.builder("build")
                     .returns(ClassName(packageName, parentClassName))
                     .addStatement(
                         StringBuilder()
                             .append("return ${parentClassName}(")
-                            .append(function.parameters.map{
+                            .append(function.parameters.map {
                                 "${it.name!!.asString()}!!"
                             }.joinToString(", "))
                             .append(")")
@@ -105,24 +161,11 @@ class KtBuilderProcessor(
                     .build()
             )
 
-            val classSpec = TypeSpec.classBuilder(className)
-                .addProperties(propertySpecList)
-                .addFunctions(funSpecList)
-                .build()
-
-
-            val file = codeGenerator.createNewFile(
-                Dependencies(true, function.containingFile!!), packageName, className
-            )
-
-            val fileSpec = FileSpec.builder(packageName, className)
-                .addType(classSpec)
-                .build()
-
-            OutputStreamWriter(file, StandardCharsets.UTF_8)
-                .use { fileSpec.writeTo(it) }
+            return funSpecList
         }
+
     }
+
 
 }
 
