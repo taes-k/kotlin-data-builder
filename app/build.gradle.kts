@@ -18,6 +18,19 @@ dependencies {
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
 }
 
+tasks.withType<Test> {
+    useJUnitPlatform()
+}
+
+java{
+    sourceSets.main {
+        java.srcDir("src/main/kotlin")
+    }
+    sourceSets.test {
+        java.srcDir("src/test/kotlin")
+    }
+}
+
 kotlin {
     sourceSets.main {
         kotlin.srcDir("build/generated/ksp/main/kotlin")
